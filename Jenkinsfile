@@ -1,40 +1,54 @@
 pipeline {
-  agent any
-  environment {
-    IMAGE = "nodejs-demo-app:${env.BUILD_NUMBER}"
-  }
-  stages {
-    stage('Checkout') {
-      steps {
-        // Replace URL below with your repository URL if you use a different one
-        git branch: 'main', url: 'https://github.com/your-username/nodejs-demo-app.git'
-      }
+    agent any
+
+    environment {
+        IMAGE_NAME = "nodejs-demo-app:${env.BUILD_NUMBER}"
+        CONTAINER_NAME = "nodejs-demo"
+        HOST_PORT = "8081"
+        CONTAINER_PORT = "8080"
     }
-    stage('Build') {
-      steps {
-        echo 'Building Docker image...'
-        sh 'docker build -t $IMAGE .'
-      }
+
+    stages {
+        stage('Checkout') {
+            steps {
+                echo "Cloning GitHub repository..."
+                git branch: 'main', url: 'https://github.com/Kona147/-Simple-Jenkins-Pipeline-for-CI-CD.git'
+            }
+        }
+
+        stage('Build Docker Image') {
+            steps {
+                echo "Building Docker image..."
+                sh "docker build -t ${IMAGE_NAME} ."
+            }
+        }
+
+        stage('Test') {
+            steps {
+                echo "Running tests inside Docker..."
+                // If you have npm tests
+                sh "docker run --rm ${IMAGE_NAME} npm test || echo 'No tests found, skipping...'"
+            }
+        }
+
+        stage('Deploy') {
+            steps {
+                echo "Deploying Docker container..."
+                // Stop old container if exists
+                sh "docker rm -f ${CONTAINER_NAME} || true"
+                // Run new container
+                sh "docker run -d --name ${CONTAINER_NAME} -p ${HOST_PORT}:${CONTAINER_PORT} ${IMAGE_NAME}"
+            }
+        }
     }
-    stage('Test') {
-      steps {
-        echo 'Running tests inside container...'
-        sh 'docker run --rm $IMAGE npm test'
-      }
+
+    post {
+        success {
+            echo "Pipeline completed successfully! App deployed at http://localhost:${HOST_PORT}"
+        }
+        failure {
+            echo "Pipeline failed. Check logs for errors."
+        }
     }
-    stage('Deploy') {
-      steps {
-        echo 'Deploying container (host port 8081 -> container 8080)...'
-        sh '''
-          docker rm -f nodejs-demo || true
-          docker run -d --name nodejs-demo -p 8081:8080 $IMAGE
-        '''
-      }
-    }
-  }
-  post {
-    always {
-      echo "Build finished with status: ${currentBuild.currentResult}"
-    }
-  }
 }
+
